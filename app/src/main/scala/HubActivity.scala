@@ -1,6 +1,6 @@
 package wtf.nbd.obw
 
-import java.util.TimerTask
+import java.util.{TimerTask, Date}
 import scala.util.chaining._
 import scala.jdk.CollectionConverters._
 import scala.collection.immutable.Seq
@@ -1987,7 +1987,6 @@ class HubActivity
       UITask {
         val assistedShortIds =
           data.cmd.assistedEdges.map(_.updExt.update.shortChannelId)
-        val isIncompleteGraph = LNParams.cm.pf.isIncompleteGraph
         val canIncreaseFee =
           data.cmd.split.myPart + data.cmd.totalFeeReserve * 2 <= LNParams.cm
             .maxSendable(LNParams.cm.all.values)
@@ -2016,7 +2015,7 @@ class HubActivity
             }
           }
 
-        if (isIncompleteGraph && warnNoRouteFound)
+        if (LNParams.cm.pf.isIncompleteGraph && warnNoRouteFound)
           snack(
             contentWindow,
             getString(R.string.ln_sync_not_complete),
@@ -2150,8 +2149,9 @@ class HubActivity
 
   // Getting graph sync status and our peer announcements
   override def process(reply: Any): Unit = reply match {
-    case na: NodeAnnouncement =>
-      LNParams.cm.all.values.foreach(_.process(na.toRemoteInfo))
+    case na: NodeAnnouncement
+        if na.timestamp > ((new Date().getTime() / 1000) - 60 * 60 * 24 * 30) =>
+      LNParams.cm.all.values.foreach(_.process(na))
     case PathFinder.CMDResync =>
       walletCards.updateLnSyncProgress(total = 1000, left = 1000)
     case prd: PureRoutingData =>
@@ -3189,9 +3189,6 @@ class HubActivity
         val commentChanged = debounce[String](
           comment => {
             UITask {
-              System.err.println(
-                s"VISIBLE: ${comment.trim.nonEmpty} (${comment.trim})"
-              )
               setVis(isVisible = comment.trim.nonEmpty, manager.attachIdentity)
             }.run
           },
